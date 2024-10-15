@@ -21,6 +21,7 @@ class ProductSerializer(serializers.Serializer):
     description = serializers.CharField()
     price = serializers.FloatField()
     quantity = serializers.IntegerField()
+    cat_id = serializers.IntegerField()
     supplier = SupplierSerializer(read_only =True)
     category = CategorySerializer(read_only =True)
     created_at = serializers.DateTimeField(read_only=True)

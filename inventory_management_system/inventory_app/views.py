@@ -157,10 +157,12 @@ def get_products_or_create_product(request: Request):
         products = product_objects.all()
         serializer = ProductSerializer(products, many=True)
         data = serializer.data
-    
+        
     if request.method == 'POST':
-    
-        serializer = ProductSerializer(data=request.data)
+        serializer = ProductSerializer(data= request.data)
+        category = category_model.objects.get(pk=id)
+        if category is None:
+            return "category not found"
         if serializer.is_valid():
             product_model.objects.create(**serializer.validated_data)
         else:
@@ -168,8 +170,7 @@ def get_products_or_create_product(request: Request):
         data = "product created successfully"
 
     return Response(data, status=status.HTTP_200_OK)
-
-
+        
 @api_view(['GET', 'PUT', 'DELETE'])
 def get_or_update_or_delete_product(request: Request, id):
     product = product_model.objects.get(pk=id)
