@@ -18,7 +18,8 @@ class Product(models.Model):
     description = models.CharField(max_length=256)
     price = models.FloatField()
     quantity = models.IntegerField()
-    cat_id =  models.ForeignKey(Category, on_delete=models.CASCADE)
-    supplier_id = models.ManyToManyField(Supplier)  
+    category =  models.ForeignKey(Category, on_delete=models.CASCADE)
+    supplier = models.ManyToManyField(Supplier, related_name='products')  
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    
