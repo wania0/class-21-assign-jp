@@ -13,10 +13,10 @@ from .models import Product as product_model
 
 from .serializers import CategorySerializer
 from .serializers import SupplierSerializer
-from .serializers import ProductSerializer
+from .serializers import ProductSerializer, ProductUpdateSerializer
 
 
-from django.db.models import Count, Sum, Avg, F
+from django.db.models import Count, Sum, Avg
 
 # category
 @api_view(['GET', 'POST'])
@@ -73,6 +73,19 @@ def get_or_update_or_delete_category(request: Request, id):
         category.delete()
         data = "deleted"
 
+    return Response(data, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+def get_category_metrics(request: Request):
+    data = []
+    category_product_count = category_model.objects.annotate(
+    total_products=Count('product__id')).values('id', 'name', 'total_products')
+    data.append({'category_product_count':category_product_count})
+    
+    category_stock_quantity = category_model.objects.annotate(
+    total_stock=Sum('product__quantity')).values('id', 'name', 'total_stock')
+    data.append({'category_stock_quantity' : category_stock_quantity})
     return Response(data, status=status.HTTP_200_OK)
 
 
@@ -136,6 +149,21 @@ def get_or_update_or_delete_supplier(request: Request, id):
 
     return Response(data, status=status.HTTP_200_OK)
 
+@api_view(['GET'])
+def get_supplier_metrics(request: Request):
+    data = []
+    products_per_supplier = (product_model.objects.values('supplier__id', 'supplier__name').annotate(total_products=Count('id')) )
+    data.append({'products_per_supplier':products_per_supplier})
+    
+    max_products_supplied = products_per_supplier.order_by('-total_products').first()
+    data.append({'max_products_supplied' : max_products_supplied})
+    
+    min_products_supplied = products_per_supplier.order_by('total_products').first()
+    data.append({'min_products_supplied' : min_products_supplied})
+    return Response(data, status=status.HTTP_200_OK)
+    
+
+
 # product
 @api_view(['GET', 'POST'])
 def get_products_or_create_product(request: Request):
@@ -150,13 +178,13 @@ def get_products_or_create_product(request: Request):
         if params.get("id") is not None:
            product_objects =product_objects.filter(id=params.get("id"))
            
-        if params.get("cat_id") is not None:
-           product_objects =product_objects.filter(cat_id=params.get("cat_id"))
+        if params.get("category_id") is not None:
+           product_objects =product_objects.filter(category_id=params.get("category_id"))
            
         if params.get("supplier_id") is not None:
            product_objects =product_objects.filter(supplier_id=params.get("supplier_id"))
 
-        products = product_objects.prefetch_related("supplier").all()
+        products = product_objects.all()
         serializer = ProductSerializer(products, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
     
@@ -164,7 +192,7 @@ def get_products_or_create_product(request: Request):
     if request.method == 'POST':
         serializer = ProductSerializer(data= request.data)
         if serializer.is_valid():
-            cat_id = serializer.validated_data.pop("cat_id")
+            cat_id = serializer.validated_data.pop("category_id")
             category = category_model.objects.get(pk=cat_id)
             if category is None:
                 return Response("category not found")
@@ -179,22 +207,29 @@ def get_products_or_create_product(request: Request):
         data = "product created successfully"
     return Response(data, status=status.HTTP_200_OK)
         
+        
+        
 @api_view(['GET', 'PUT', 'DELETE'])
 def get_or_update_or_delete_product(request: Request, id):
     product = product_model.objects.get(pk=id)
+    
     
     if request.method == 'GET':
         serializer = ProductSerializer(product)
         return Response(serializer.data, status=200)
 
     if request.method == 'PUT':
-        serializer = ProductSerializer(data=request.data)
+        serializer = ProductUpdateSerializer(data=request.data)
         
         if serializer.is_valid():
-             product.name = serializer.validated_data['name']
-             product.cat_id = serializer.validated_data['cat_id']
-             product.supplier_id = serializer.validated_data['supplier_id']
-             product.save()
+            
+            category_id = serializer.validated_data['category_id']
+            category = category_model.objects.get(pk=category_id)
+            product.category = category
+            supplier_ids = serializer.validated_data['supplier_id']
+            supplier = supplier_model.objects.filter(id__in=supplier_ids).all()
+            product.save()
+            product.supplier.set(supplier)
 
         else:
             return Response( serializer.errors , status=status.HTTP_400_BAD_REQUEST)
@@ -207,35 +242,36 @@ def get_or_update_or_delete_product(request: Request, id):
 
     return Response(data, status=status.HTTP_200_OK)
 
-
-
-
-
-#     total_products = product_model.objects.count()
-
-#     products_per_category = (
-#         product_model.objects.values('category_id')
-#         .annotate(total_products=Count('id'))
-#     )
-
-#     products_per_supplier = (
-#         product_model.objects.values('supplier_id')
-#         .annotate(total_products=Count('id'))
-#     )
-
-#     stock_quantity_per_category = (
-#         product_model.objects.values('category_id')
-#         .annotate(total_stock=Sum('quantity'))
-#     )
-
-#     avg_price_per_category = (
-#         product_model.objects.values('category_id')
-#         .annotate(avg_price=Avg('price'))
-#     )
-
-#     # Category Metrics
-#    product_by_category = (category_model.objects.values('id').annotate(product_count=Count('product')))
-   
-#    stock_quantity_by_category = (category_model.objects.values('id').annotate(total_stock_quantity=Sum('product__quantity')))
-
+@api_view(['GET'])
+def get_product_metrics(request: Request):
+    data = []
     
+    #product metrics
+    total_products = product_model.objects.count()
+    data.append({'total_products': total_products})
+    
+    products_per_category = (
+        product_model.objects.values('category_id')
+        .annotate(total_products=Count('id'))
+    )
+    data.append({'products_per_category':products_per_category})
+    
+    products_per_supplier = (
+        product_model.objects.values('supplier__id')
+        .annotate(total_products=Count('id'))
+    )
+    data.append({'products_per_supplier':products_per_supplier})
+    
+    stock_quantity_per_category = (
+        product_model.objects.values('category_id')
+        .annotate(total_stock=Sum('quantity'))
+    )
+    data.append({'stock_quantity_per_category' : stock_quantity_per_category})
+
+    avg_price_per_category = (
+        product_model.objects.values('category_id')
+        .annotate(avg_price=Avg('price'))
+    )
+    data.append({'avg_price_per_category': avg_price_per_category})
+    return Response(data, status=status.HTTP_200_OK)
+

@@ -21,9 +21,17 @@ class ProductSerializer(serializers.Serializer):
     description = serializers.CharField()
     price = serializers.FloatField()
     quantity = serializers.IntegerField()
-    cat_id = serializers.IntegerField()
-    supplier_id = serializers.ListField()
+    category_id = serializers.IntegerField()
+    supplier_id = serializers.ListField(write_only=True)
     supplier = SupplierSerializer(many=True, read_only =True)
     category = CategorySerializer(read_only =True)
     created_at = serializers.DateTimeField(read_only=True)
     updated_at = serializers.DateTimeField(read_only=True)   
+    
+class ProductUpdateSerializer(serializers.Serializer):
+    name = serializers.CharField()
+    category_id = serializers.IntegerField()
+    supplier_id = serializers.ListField()
+  
+    
+    
